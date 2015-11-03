@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <sstream>
 #include <vector>
 
 using namespace std;	//add
@@ -25,6 +24,7 @@ struct Line {		//comments
 				last = pos;
 			}
 		}
+		cell_widths.push_back(pos - last);
 		cells.push_back(string(last, pos));
 	}
 	int stop_count() { return indent + cell_widths.size(); }
@@ -39,13 +39,11 @@ struct Line {		//comments
 
 		if (leading_indent_size) cout <<string(leading_indent_size, ' ');
 		if (!cells.empty()) {
-			cout <<"~"; cout.flush();
 			cout <<*cell;
 			w += *width_i;
 			cell++;
 			width_i++;
 		}
-		cout <<"`"; cout.flush();
 
 		if (!stops.empty()) {
 			auto stop = stops.begin() + indent;
@@ -59,7 +57,7 @@ struct Line {		//comments
 				stop++;
 			}
 		}
-		cout <<"$" <<endl;
+		cout <<endl;
 	}
 
 	int indent;
@@ -70,14 +68,20 @@ struct Line {		//comments
 struct Group {
 	Group() : stop_count(-1) { }
 
-	void reset() {
+	void end() {
+		if (stop_count == -1) return;
+		print();
 		lines.clear();
 		cell_widths.clear();
 		stop_count = -1;
 	}
 
 	void add_line(Line l) {
-		if (l.stop_count() == stop_count) {
+		if (stop_count == -1) {
+			stop_count = l.stop_count();
+			lines.push_back(l);
+			set_group_cell_widths(l);
+		} else if (l.stop_count() == stop_count) {
 			lines.push_back(l);
 			update_group_cell_widths(l);
 		} else {
@@ -123,10 +127,12 @@ struct Group {
 	}
 
 	void print() {
+		cout <<"-----" <<endl;
 		vector<Width> stops = tabstops();
 		for (auto line : lines) {
 			line.print(stops);
 		}
+		cout <<"=====" <<endl;
 	}
 
 	vector<Width> cell_widths;
@@ -143,20 +149,18 @@ int main(int argc, char *argv[]) {
 		Line l(line);
 
 		if (g.stop_count == l.stop_count()) {
-			cout <<"1: "; cout.flush();
 			g.add_line(l);
 		} else if (l.cells.size() <= 1) {
-			cout <<"2: "; cout.flush();
-			g.print();
-			g.reset();
+			// There's nothing besides indentation. End the current group,
+			// but don't start another. The current line's tabstops are not
+			// dependent on following lines, and it may be output immediately.
+			g.end();
 			l.print(vector<Width>());
 		} else {
-			cout <<"3: "; cout.flush();
-			g.print();
-			g.reset();
+			g.end();
 			g.add_line(l);
 		}
 	}
-	g.print();
+	g.end();
 	return 0;
 }
