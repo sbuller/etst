@@ -2,42 +2,39 @@
 #include <string>
 #include <vector>
 
-using namespace std;	//add
+using namespace std;
 
 struct Line;
-typedef string::size_type Width;	//some
+typedef string::size_type Width;
 
 int tab_width = 4;
 
-struct Line {		//comments
-	Line (string line) {	//to the file
+struct Line {
+	Line (string line) {
 		auto pos = line.begin();
-		indent = 0;
-
-		for (; pos < line.end() && *pos == '\t'; ++pos) indent++;
-
-		auto last = pos;
-		for (; pos < line.end(); ++pos) {
+		auto next_start = pos;
+		for (; pos != line.end(); ++pos) {
 			if (*pos == '\t') {
-				cell_widths.push_back(pos - last);
-				cells.push_back(string(last, pos));
-				last = pos;
+				string s = string(next_start, pos);
+				Width w = s.size();
+				cell_widths.push_back(w);
+				cells.push_back(s);
+				next_start = pos + 1;
 			}
 		}
-		cell_widths.push_back(pos - last);
-		cells.push_back(string(last, pos));
+		string s = string(next_start, pos);
+		cell_widths.push_back(s.size());
+		cells.push_back(s);
 	}
-	int stop_count() { return indent + cell_widths.size(); }
+	int stop_count() { return cell_widths.size(); }
 	void print(vector<Width> stops) {
-		Width leading_indent_size = tab_width * indent;
 		auto cell = cells.begin();
 		auto last_cell = cells.end();
 		auto width_i = cell_widths.begin();
 		auto last_width_i = cell_widths.end();
-		Width w = leading_indent_size;
+		Width w = 0;
 
 
-		if (leading_indent_size) cout <<string(leading_indent_size, ' ');
 		if (!cells.empty()) {
 			cout <<*cell;
 			w += *width_i;
@@ -46,7 +43,7 @@ struct Line {		//comments
 		}
 
 		if (!stops.empty()) {
-			auto stop = stops.begin() + indent;
+			auto stop = stops.begin();
 			while (cell < cells.end() && stop < stops.end()) {
 				Width d = *stop - w;
 				cout <<string(d, ' ');
@@ -60,7 +57,6 @@ struct Line {		//comments
 		cout <<endl;
 	}
 
-	int indent;
 	vector<Width> cell_widths;
 	vector<string> cells;
 };
@@ -92,16 +88,13 @@ struct Group {
 
 	void set_group_cell_widths(Line l) {
 		cell_widths.clear();
-		for (int i=0; i<l.indent; ++i) {
-			cell_widths.push_back(0);
-		}
 		for (auto cw : l.cell_widths) {
 			cell_widths.push_back(cw);
 		}
 	}
 
 	void update_group_cell_widths(Line l) {
-		int pos = l.indent;
+		int pos = 0;
 		for (auto cw : l.cell_widths) {
 			if (cw > cell_widths[pos]) cell_widths[pos] = cw;
 			pos++;
@@ -110,29 +103,26 @@ struct Group {
 
 	vector<Width> tabstops() {
 		int xpos = 0;
-		bool indent = true;
 		vector<Width> ts;
 		for (auto cell = cell_widths.begin(); cell < cell_widths.end(); cell++) {
-			if (*cell == 0 && indent) {
-				xpos += tab_width;
-			} else if (*cell == 0) {
+			if (*cell == 0) {
 				xpos++;
 			} else {
-				xpos += *cell;
-				indent = false;
+				xpos += *cell + 1;
 			}
+			int next_stop_num = (xpos / tab_width) + 1;
+			int next_stop_pos = tab_width * next_stop_num;
+			xpos = next_stop_pos;
 			ts.push_back(xpos);
 		}
 		return ts;
 	}
 
 	void print() {
-		cout <<"-----" <<endl;
 		vector<Width> stops = tabstops();
 		for (auto line : lines) {
 			line.print(stops);
 		}
-		cout <<"=====" <<endl;
 	}
 
 	vector<Width> cell_widths;
@@ -151,8 +141,8 @@ int main(int argc, char *argv[]) {
 		if (g.stop_count == l.stop_count()) {
 			g.add_line(l);
 		} else if (l.cells.size() <= 1) {
-			// There's nothing besides indentation. End the current group,
-			// but don't start another. The current line's tabstops are not
+			// There's no tabs on this line. End the current group,
+			// but don't start another. The are no tabstops that would be
 			// dependent on following lines, and it may be output immediately.
 			g.end();
 			l.print(vector<Width>());
